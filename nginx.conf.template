@@ -1,0 +1,44 @@
+# ChartDB site for Railway. ${PORT} is filled in by railway-start.sh.
+server {
+    listen ${PORT};
+    listen [::]:${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+    # Health check for Railway: no login, no logging.
+    location = /healthz {
+        auth_basic off;
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Everything else needs the login when CHARTDB_PASSWORD is set.
+    include /etc/nginx/chartdb/auth.conf;
+
+    # Runtime settings for the browser app (written at start).
+    location = /config.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+        alias /etc/nginx/chartdb/config.js;
+    }
+
+    # Hashed build files never change: cache them for a year.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # The single-page app: always fetch a fresh index.html so updates show at once.
+    location / {
+        add_header Cache-Control "no-cache" always;
+        try_files $uri $uri/ /index.html;
+    }
+}
